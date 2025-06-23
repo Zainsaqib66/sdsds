@@ -1,19 +1,425 @@
-{
-  "name": "game",
-  "version": "1.0.0",
-  "main": "server.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^5.1.0",
-    "express-session": "^1.18.1",
-    "socket.io": "^4.8.1",
-    "uuid": "^11.1.0"
-  },
-  "description": ""
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tic-Tac-Toe Multiplayer</title>
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg1: #1f2733;
+      --bg2: #28303f;
+      --card: #2e3748;
+      --a1: #3ddc97;
+      --a2: #ff5e7a;
+      --text: #e0e6ed;
+      --dim: #a3adb8;
+      --win: linear-gradient(90deg, #ffdf48 25%, #fff 95%);
+      --shadow: rgba(0, 0, 0, 0.4);
+      --tr: 0.28s;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #container {
+      background: var(--card);
+      padding: 32px;
+      border-radius: 12px;
+      width: 360px;
+      max-width: 90vw;
+      box-shadow: 0 12px 24px var(--shadow);
+      transform: scale(0);
+      animation: pop .4s forwards;
+    }
+    @keyframes pop { to { transform: scale(1); } }
+    h1 {
+      text-align: center;
+      font-weight: 700;
+      font-size: 2rem;
+      background: linear-gradient(90deg, var(--a1), var(--a2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 24px;
+    }
+    #settings {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    #settings label {
+      flex: 1;
+      font-size: 0.9rem;
+      color: var(--dim);
+    }
+    #settings select {
+      width: 100%;
+      padding: 6px 8px;
+      border: none;
+      border-radius: 6px;
+      background: #3b4458;
+      color: var(--text);
+      transition: background var(--tr);
+    }
+    #settings select:hover { background: #4a5468; }
+    .btn {
+      all: unset;
+      display: block;
+      text-align: center;
+      padding: 12px 0;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: background var(--tr), transform var(--tr);
+      box-shadow: 0 4px 12px var(--shadow);
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    #joinBtn { background: var(--a1); color: #1b232e; }
+    #backBtn, #waitBackBtn, #timeoutBackBtn { background: #46516b; color: var(--text); }
+    #joinBtn:hover { background: #32c88a; }
+    #backBtn:hover, #waitBackBtn:hover, #timeoutBackBtn:hover { background: #55607a; }
+    #rematchBtn {
+      background: var(--a1);
+      color: #1b232e;
+      display: none;
+    }
+    #rematchBtn:hover { background: #32c88a; }
+    #board {
+      display: grid;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .cell {
+      background: #3b4458;
+      border-radius: 6px;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text);
+      transition: background var(--tr), transform var(--tr);
+      box-shadow: 0 4px 10px var(--shadow);
+      user-select: none;
+    }
+    .cell:hover:not(.win):not(.active) {
+      background: #4a5468;
+      transform: translateY(-2px);
+    }
+    .X { color: var(--a1); }
+    .O { color: var(--a2); }
+    .active { outline: 3px solid var(--text); }
+    .win {
+      background: var(--win) !important;
+      color: #444 !important;
+      animation: wp 0.8s infinite alternate;
+      box-shadow: 0 0 20px #ffd;
+    }
+    @keyframes wp { from { transform: scale(1); } to { transform: scale(1.05); } }
+    #status {
+      text-align: center;
+      font-weight: 600;
+      color: var(--a1);
+      min-height: 1.2em;
+    }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 24, 32, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      animation: fade 0.3s forwards;
+    }
+    @keyframes fade { to { opacity: 1; } }
+    .dialog {
+      background: var(--card);
+      padding: 24px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 8px 24px var(--shadow);
+      transform: translateY(-20px);
+      animation: slide 0.4s forwards;
+    }
+    @keyframes slide { to { transform: translateY(0); } }
+    .dialog button {
+      all: unset;
+      display: inline-block;
+      margin-top: 16px;
+      padding: 8px 20px;
+      border-radius: 6px;
+      background: var(--a1);
+      color: #1b232e;
+      transition: background var(--tr), transform var(--tr);
+      cursor: pointer;
+    }
+    .dialog button:hover {
+      background: #32c88a;
+      transform: translateY(-2px);
+    }
+    @media (max-width: 400px) {
+      .cell { font-size: 1.8rem; }
+      #container { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Authentication overlay -->
+  <div id="authOverlay" style="position:fixed;inset:0;
+       background:rgba(0,0,0,0.8);display:flex;align-items:center;
+       justify-content:center;z-index:1000;">
+    <div style="background:var(--card);padding:24px;
+           border-radius:8px;width:300px;color:var(--text);">
+      <h2 id="authTitle">Login</h2>
+      <div id="authError" style="color:#f66;margin-bottom:8px;"></div>
+      <input id="authUser" placeholder="Username" style="width:100%;margin-bottom:8px;padding:6px"/>
+      <input id="authPass" type="password" placeholder="Password" style="width:100%;margin-bottom:12px;padding:6px"/>
+      <button id="authSubmit" class="btn" style="width:100%;">Submit</button>
+      <div style="text-align:center;margin-top:8px;">
+        <a href="#" id="toggleAuth" style="color:var(--a2)">Register</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game container -->
+  <div id="container">
+    <h1>Tic-Tac-Toe</h1>
+    <div id="settings">
+      <label>
+        Grid
+        <select id="gridSelect">
+          <option value="3">3×3</option>
+          <option value="4">4×4</option>
+        </select>
+      </label>
+      <label>
+        Theme
+        <select id="themeSelect">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+      <label>
+        Sound
+        <select id="soundSelect">
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+    </div>
+
+    <button id="joinBtn" class="btn">Join Game</button>
+    <button id="backBtn" class="btn" style="display:none;">Back to Menu</button>
+    <button id="rematchBtn" class="btn">Rematch</button>
+
+    <div id="waiting" class="modal">
+      <div class="dialog">
+        <div style="font-size:1.2em; margin-bottom:12px;">🤝 Looking for opponent…</div>
+        <button id="waitBackBtn" class="btn">Cancel</button>
+      </div>
+    </div>
+
+    <div id="game" style="display:none;">
+      <div id="status"></div>
+      <div id="board"></div>
+    </div>
+
+    <div id="timeout" class="modal">
+      <div class="dialog">
+        <div style="font-size:1.5em;">😢 No opponent found!</div>
+        <button id="timeoutBackBtn" class="btn">Back</button>
+      </div>
+    </div>
+
+    <div id="rematch" class="modal">
+      <div class="dialog" id="remContent"></div>
+    </div>
+  </div>
+
+  <audio id="moveSound" src="https://cdn.pixabay.com/audio/2022/07/26/audio_124bfa83b5.mp3"></audio>
+  <audio id="winSound"  src="https://cdn.pixabay.com/audio/2022/10/16/audio_12cb0a6972.mp3"></audio>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // auth + socket setup
+    const socket = io({ autoConnect: false });
+    const authOverlay = document.getElementById("authOverlay"),
+          authTitle   = document.getElementById("authTitle"),
+          authError   = document.getElementById("authError"),
+          authUser    = document.getElementById("authUser"),
+          authPass    = document.getElementById("authPass"),
+          authSubmit  = document.getElementById("authSubmit"),
+          toggleAuth  = document.getElementById("toggleAuth");
+    let isLogin = true;
+    function showError(msg) { authError.textContent = msg; }
+    toggleAuth.onclick = e => {
+      e.preventDefault();
+      isLogin = !isLogin;
+      authTitle.textContent = isLogin ? "Login" : "Register";
+      toggleAuth.textContent = isLogin ? "Register" : "Login";
+      showError("");
+    };
+    authSubmit.onclick = async () => {
+      const url = isLogin ? "/api/login" : "/api/register";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: authUser.value.trim(),
+          password: authPass.value
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) return showError(data.error);
+      if (!isLogin) {
+        isLogin = true;
+        authTitle.textContent = "Login";
+        toggleAuth.textContent = "Register";
+        return showError("Registration successful. Please log in.");
+      }
+      authOverlay.style.display = "none";
+      socket.connect();
+    };
+
+    // game logic
+    let gridSize = 3, currentRoom = null, myMark = null, gameOver = false, remReq = false;
+    const qs = id => document.getElementById(id),
+      joinBtn      = qs('joinBtn'),
+      backBtn      = qs('backBtn'),
+      rematchBtn   = qs('rematchBtn'),
+      waitBackBtn  = qs('waitBackBtn'),
+      timeoutBackBtn = qs('timeoutBackBtn'),
+      waiting      = qs('waiting'),
+      timeout      = qs('timeout'),
+      rematch      = qs('rematch'),
+      remContent   = qs('remContent'),
+      gameDiv      = qs('game'),
+      statusDiv    = qs('status'),
+      boardDiv     = qs('board'),
+      gridSel      = qs('gridSelect'),
+      themeSel     = qs('themeSelect'),
+      soundSel     = qs('soundSelect'),
+      moveSound    = qs('moveSound'),
+      winSound     = qs('winSound');
+
+    // settings persistence
+    ['tic-grid','tic-theme','tic-sound'].forEach(k => {
+      const v = localStorage.getItem(k);
+      if (!v) return;
+      if (k==='tic-grid') gridSel.value=v, gridSize=+v;
+      if (k==='tic-theme') themeSel.value=v, document.body.className=v;
+      if (k==='tic-sound') soundSel.value=v;
+    });
+    gridSel.onchange = ()=>{ gridSize=+gridSel.value; localStorage.setItem('tic-grid',gridSel.value); };
+    themeSel.onchange = ()=>{ document.body.className=themeSel.value; localStorage.setItem('tic-theme',themeSel.value); };
+    soundSel.onchange = ()=>{ localStorage.setItem('tic-sound',soundSel.value); };
+
+    function show(el){ el.style.display=(el===waiting||el===timeout||el===rematch)?'flex':'block'; }
+    function hide(el){ el.style.display='none'; }
+    function reset(){
+      hide(gameDiv); hide(waiting); hide(timeout); hide(rematch);
+      hide(backBtn); hide(rematchBtn);
+      statusDiv.textContent=''; boardDiv.textContent='';
+      gameOver=false; remReq=false;
+      show(joinBtn);
+    }
+    window.addEventListener('beforeunload',()=>{
+      if(waiting.style.display==='flex') socket.emit('cancelWait',{grid:gridSize});
+      else if(gameDiv.style.display==='block') socket.emit('backToMenu',{room:currentRoom});
+    });
+    joinBtn.onclick=()=>{ hide(joinBtn); show(waiting); socket.emit('joinGame',{grid:gridSize}); };
+    waitBackBtn.onclick=()=>{ hide(waiting); show(joinBtn); socket.emit('cancelWait',{grid:gridSize}); };
+    timeoutBackBtn.onclick=reset;
+    backBtn.onclick=()=>{ socket.emit('backToMenu',{room:currentRoom}); reset(); };
+    rematchBtn.onclick=()=>{
+      if(remReq) return;
+      remReq=true; hide(rematchBtn); hide(backBtn);
+      show(rematch);
+      remContent.innerHTML='<div>Waiting for opponent…</div>';
+      socket.emit('rematchRequest',{room:currentRoom});
+    };
+
+    function drawBoard(cells, winLine=[]){
+      boardDiv.innerHTML=''; boardDiv.style.gridTemplateColumns=`repeat(${gridSize},1fr)`;
+      cells.forEach((v,i)=>{
+        const div=document.createElement('div');
+        div.className=`cell ${v||''}`;
+        div.dataset.idx=i;
+        div.onclick=()=>{ if(!gameOver && !v) socket.emit('move',{room:currentRoom,idx:i}); };
+        if(winLine.includes(i)) div.classList.add('win');
+        div.textContent=v||'';
+        boardDiv.appendChild(div);
+      });
+    }
+    function updateStatus(turn){
+      const yourTurn=(turn===0&&myMark==='X')||(turn===1&&myMark==='O');
+      statusDiv.innerHTML=yourTurn?'<b>Your turn</b>':'<b>Opponent\'s turn</b>';
+    }
+
+    // socket events
+    socket.on('waitingOpponent',()=>{ hide(joinBtn); show(waiting); });
+    socket.on('timeout',()=>{ hide(waiting); show(timeout); });
+    socket.on('start',({room,grid,yourMark,opponentMark,turn})=>{
+      currentRoom=room; myMark=yourMark; gridSize=grid;
+      hide(joinBtn); hide(waiting);
+      drawBoard(Array(grid*grid).fill(null));
+      updateStatus(turn);
+      show(gameDiv); show(backBtn);
+    });
+    socket.on('update',({board,turn})=>{
+      drawBoard(board);
+      updateStatus(turn);
+      if(soundSel.value==='on') moveSound.play();
+    });
+    socket.on('gameover',({winner,board,winLine})=>{
+      gameOver=true; drawBoard(board,winLine);
+      if(winner){
+        statusDiv.innerHTML= winner===myMark?'<b>You win! 🎉</b>':'<b>You lose 😢</b>';
+      } else statusDiv.innerHTML='<b>Draw!</b>';
+      show(rematchBtn);
+      if(soundSel.value==='on') winSound.play();
+    });
+    socket.on('opponentLeft',()=>{
+      statusDiv.innerHTML='<b>Opponent left. You win!</b>';
+      if(soundSel.value==='on') winSound.play();
+      setTimeout(reset,2000);
+    });
+    socket.on('gotoMenu',reset);
+    socket.on('opponentRematch',()=>{
+      show(rematch);
+      remContent.innerHTML=`
+        <div>Opponent wants a rematch</div>
+        <button id="rOK" class="btn">Yes</button>
+        <button id="rCancel" class="btn">No</button>`;
+      qs('rOK').onclick=()=>{
+        socket.emit('rematchRequest',{room:currentRoom});
+        hide(rematch);
+      };
+      qs('rCancel').onclick=()=>{
+        socket.emit('backToMenu',{room:currentRoom});
+        reset();
+      };
+    });
+    socket.on('rematchStart',({yourMark,turn})=>{
+      remReq=false; myMark=yourMark; gameOver=false;
+      hide(rematch);
+      drawBoard(Array(gridSize*gridSize).fill(null));
+      updateStatus(turn);
+      hide(rematchBtn);
+    });
+
+    // initial
+    reset();
+  </script>
+</body>
+</html>
